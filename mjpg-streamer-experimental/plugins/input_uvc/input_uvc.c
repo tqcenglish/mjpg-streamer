@@ -111,13 +111,13 @@ const char *get_name_by_tvnorm(v4l2_std_id vstd) {
 
 static context_settings * init_settings() {
     context_settings *settings;
-    
+
     settings = calloc(1, sizeof(context_settings));
     if (settings == NULL) {
         IPRINT("error allocating context");
         exit(EXIT_FAILURE);
     }
-    
+
     settings->quality = 80;
     return settings;
 }
@@ -136,17 +136,18 @@ Return Value: 0 if everything is fine
 int input_init(input_parameter *param, int id)
 {
     char *dev = "/dev/video0", *s;
-    int width = 640, height = 480, fps = -1, format = V4L2_PIX_FMT_MJPEG, i;
+    //int width = 640, height = 480, fps = -1, format = V4L2_PIX_FMT_MJPEG, i;
+    int width = 640, height = 480, fps = 60, format = V4L2_PIX_FMT_YUYV, i;
     v4l2_std_id tvnorm = V4L2_STD_UNKNOWN;
     context *pctx;
     context_settings *settings;
-    
+
     pctx = calloc(1, sizeof(context));
     if (pctx == NULL) {
         IPRINT("error allocating context");
         exit(EXIT_FAILURE);
     }
-    
+
     settings = pctx->init_settings = init_settings();
     pglobal = param->global;
     pglobal->in[id].context = pctx;
@@ -389,7 +390,7 @@ int input_init(input_parameter *param, int id)
         IPRINT("not enough memory for videoIn\n");
         exit(EXIT_FAILURE);
     }
-    
+
     /* display the parsed values */
     IPRINT("Using V4L2 device.: %s\n", dev);
     IPRINT("Desired Resolution: %i x %i\n", width, height);
@@ -447,9 +448,9 @@ int input_init(input_parameter *param, int id)
      */
     if(dynctrls)
         initDynCtrls(pctx->videoIn->fd);
-    
+
     enumerateControls(pctx->videoIn, pctx->pglobal, id); // enumerate V4L2 controls after UVC extended mapping
-    
+
     return 0;
 }
 
@@ -462,7 +463,7 @@ int input_stop(int id)
 {
     input * in = &pglobal->in[id];
     context *pctx = (context*)in->context;
-    
+
     DBG("will cancel camera thread #%02d\n", id);
     pthread_cancel(pctx->threadID);
     return 0;
@@ -477,7 +478,7 @@ int input_run(int id)
 {
     input * in = &pglobal->in[id];
     context *pctx = (context*)in->context;
-    
+
     in->buf = malloc(pctx->videoIn->framesizeIn);
     if(in->buf == NULL) {
         fprintf(stderr, "could not allocate memory\n");
@@ -509,7 +510,7 @@ void help(void)
     " [-r | --resolution ]...: the resolution of the video device,\n" \
     "                          can be one of the following strings:\n" \
     "                          ");
-    
+
     resolutions_help("                          ");
 
     fprintf(stderr,
@@ -563,25 +564,25 @@ void *cam_thread(void *arg)
     input * in = (input*)arg;
     context *pcontext = (context*)in->context;
     context_settings *settings = pcontext->init_settings;
-    
+
     unsigned int every_count = 0;
     int quality = settings->quality;
-    
+
     /* set cleanup handler to cleanup allocated resources */
     pthread_cleanup_push(cam_cleanup, in);
-    
+
     #define V4L_OPT_SET(vid, var, desc) \
       if (input_cmd(pcontext->id, vid, IN_CMD_V4L2, settings->var, NULL) != 0) {\
           fprintf(stderr, "Failed to set " desc "\n"); \
       } else { \
           printf(" i: %-18s: %d\n", desc, settings->var); \
       }
-    
+
     #define V4L_INT_OPT(vid, var, desc) \
       if (settings->var##_set) { \
           V4L_OPT_SET(vid, var, desc) \
       }
-    
+
     /* V4L options */
     V4L_INT_OPT(V4L2_CID_SHARPNESS, sh, "sharpness")
     V4L_INT_OPT(V4L2_CID_CONTRAST, co, "contrast")
@@ -591,54 +592,54 @@ void *cam_thread(void *arg)
     V4L_INT_OPT(V4L2_CID_HFLIP, hf, "hflip")
     V4L_INT_OPT(V4L2_CID_VFLIP, vf, "vflip")
     V4L_INT_OPT(V4L2_CID_VFLIP, pl, "power line filter")
-    
+
     if (settings->br_set) {
         V4L_OPT_SET(V4L2_CID_AUTOBRIGHTNESS, br_auto, "auto brightness mode")
-        
+
         if (settings->br_auto == 0) {
             V4L_OPT_SET(V4L2_CID_BRIGHTNESS, br, "brightness")
         }
     }
-    
+
     if (settings->wb_set) {
         V4L_OPT_SET(V4L2_CID_AUTO_WHITE_BALANCE, wb_auto, "auto white balance mode")
-        
+
         if (settings->wb_auto == 0) {
             V4L_OPT_SET(V4L2_CID_WHITE_BALANCE_TEMPERATURE, wb, "white balance temperature")
         }
     }
-    
+
     if (settings->ex_set) {
         V4L_OPT_SET(V4L2_CID_EXPOSURE_AUTO, ex_auto, "exposure mode")
         if (settings->ex_auto == V4L2_EXPOSURE_MANUAL) {
             V4L_OPT_SET(V4L2_CID_EXPOSURE_ABSOLUTE, ex, "absolute exposure")
         }
     }
-    
+
     if (settings->gain_set) {
         V4L_OPT_SET(V4L2_CID_AUTOGAIN, gain_auto, "auto gain mode")
-        
+
         if (settings->gain_auto == 0) {
             V4L_OPT_SET(V4L2_CID_GAIN, gain, "gain")
         }
     }
-    
+
     if (settings->cagc_set) {
         V4L_OPT_SET(V4L2_CID_AUTO_WHITE_BALANCE, cagc_auto, "chroma gain mode")
-        
+
         if (settings->cagc_auto == 0) {
             V4L_OPT_SET(V4L2_CID_WHITE_BALANCE_TEMPERATURE, cagc, "chroma gain")
         }
     }
-    
+
     if (settings->cb_set) {
         V4L_OPT_SET(V4L2_CID_HUE_AUTO, cb_auto, "color balance mode")
-        
+
         if (settings->cb_auto == 0) {
             V4L_OPT_SET(V4L2_CID_HUE, cagc, "color balance")
         }
     }
-    
+
     free(settings);
     settings = NULL;
     pcontext->init_settings = NULL;
@@ -759,7 +760,7 @@ void cam_cleanup(void *arg)
 {
     input * in = (input*)arg;
     context *pctx = (context*)in->context;
-    
+
     IPRINT("cleaning up resources allocated by input thread\n");
 
     if (pctx->videoIn != NULL) {
@@ -768,7 +769,7 @@ void cam_cleanup(void *arg)
         free(pctx->videoIn);
         pctx->videoIn = NULL;
     }
-    
+
     free(in->buf);
     in->buf = NULL;
     in->size = 0;
@@ -786,7 +787,7 @@ int input_cmd(int plugin_number, unsigned int control_id, unsigned int group, in
 {
     input * in = &pglobal->in[plugin_number];
     context *pctx = (context*)in->context;
-    
+
     int ret = -1;
     int i = 0;
     DBG("Requested cmd (id: %d) for the %d plugin. Group: %d value: %d\n", control_id, plugin_number, group, value);
